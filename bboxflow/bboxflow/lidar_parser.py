@@ -4,27 +4,35 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
+from visualization_msgs.msg import MarkerArray
 
 class LidarSubscriber(Node):
     def __init__(self):
         super().__init__('lidar_parser')
+
+        # Declare and get 'lidar_topic' parameter
+        self.declare_parameter('lidar_topic', '/sim/lidar2')
+        lidar_topic = self.get_parameter('lidar_topic').get_parameter_value().string_value
+
         self.subscription = self.create_subscription(
             PointCloud2,
-            '/sim/lidar2',  # Change topic if needed
+            lidar_topic,
             self.lidar_callback,
             10)
-        self.get_logger().info('Lidar Subscriber Node Started...')
+
+        self.marker_pub = self.create_publisher(MarkerArray, 'bbox_markers', 10)
+
+        self.get_logger().info(f'BBoxFlow Node Started... Subscribed to: {lidar_topic}')
+
 
     def lidar_callback(self, msg):
         self.get_logger().info(f"Received LiDAR frame with {msg.width} points")
         # Process point cloud snapshot here (later for detection)
         point_gen = point_cloud2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True)
-        print("type: ", type(point_gen))
-        print("size: ", len(point_gen))
         count = 0
         for point in point_gen:
             x, y, z = point
-            print(f"Point {count}: x={x:.2f}, y={y:.2f}, z={z:.2f}")
+            self.get_logger().info(f"Point {count}: x={x:.2f}, y={y:.2f}, z={z:.2f}")
             count += 1
             if count >= 5:  # Just print first 5 points per message
                 break
