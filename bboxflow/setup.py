@@ -1,11 +1,11 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 package_name = 'bboxflow'
 
 setup(
     name=package_name,
     version='0.0.0',
-    packages=find_packages(exclude=['test']),
+    packages=[package_name],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -14,12 +14,13 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='hamidreza',
-    maintainer_email='hrhhemati@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    maintainer_email='your_email@example.com',
+    description='BBoxFlow - LiDAR Object Detection Pipeline',
+    license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'lidar_parser = bboxflow.lidar_parser:main',
         ],
     },
 )
