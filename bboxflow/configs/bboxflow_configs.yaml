@@ -1,0 +1,18 @@
+object_detection_input:
+  lidar_topic:
+    enable: True
+    name: '/sim/lidar2'
+
+  image_topic:
+    enable: False
+    name: ''
+
+
+  lidar_concatanation:
+    enable: False
+    topics: ''
+
+
+  lidar_image_fusion:
+    enable: False
+    topics: ''

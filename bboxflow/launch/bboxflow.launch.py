@@ -14,17 +14,17 @@ def generate_launch_description():
     rviz_config_path = os.path.join(bboxflow_pkg, 'rviz', 'bboxflow_config.rviz')
 
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'lidar_topic',
-            default_value='/sim/lidar2',
-            description='LiDAR topic to subscribe to'
-        ),
+        # DeclareLaunchArgument(
+        #     'lidar_topic',
+        #     default_value='/sim/lidar2',
+        #     description='LiDAR topic to subscribe to'
+        # ),
         Node(
             package='bboxflow',
-            executable='lidar_parser',
-            name='lidar_parser_node',
-            output='screen',
-            parameters=[{'lidar_topic': LaunchConfiguration('lidar_topic')}]
+            executable='bbox_flow',
+            name='bbox_flow_node',
+            output='screen'
+            # parameters=[{'lidar_topic': LaunchConfiguration('lidar_topic')}]
         ),
         Node(
             package='rviz2',
