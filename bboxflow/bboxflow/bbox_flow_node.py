@@ -11,17 +11,13 @@ import os
 import yaml
 import collections.abc 
 import numpy as np
+from autoware_perception_msgs.msg import DetectedObjects, DetectedObject, Shape, ObjectClassification, DetectedObjectKinematics
+from geometry_msgs.msg import Pose, Vector3, PoseWithCovariance
 
 
 class BBoxFlow(Node):
     def __init__(self):
         super().__init__('bbox_flow')
-
-        # Declare and get 'lidar_topic' parameter
-
-        ## Uncomment if you want to declare topic from launch 
-        # self.declare_parameter('lidar_topic', '/sim/lidar2')
-        # lidar_topic = self.get_parameter('lidar_topic').get_parameter_value().string_value
 
         ## Insert the topic you want to subscribe in config file
         self.configs = self.config_file_loader('bboxflow_configs.yaml')
@@ -32,13 +28,13 @@ class BBoxFlow(Node):
             self.lidar_topic,
             self.lidar_callback,
             10)
-
+        self.get_logger().info(f'BBoxFlow Node Started... Subscribed to: {self.lidar_topic}')
+        
         self.bbox_topic = self.lidar_topic + '/detected_objects'
-        self.marker_pub = self.create_publisher(MarkerArray, self.bbox_topic, 10)
+        self.detected_objects_pub = self.create_publisher(DetectedObjects, self.bbox_topic, 10)
         self.lidar_data = np.array
 
-        self.get_logger().info(f'BBoxFlow Node Started... Subscribed to: {self.lidar_topic}')
-
+        
     def config_file_loader(self, file_name):
         # Get the share directory of bboxflow package
         bboxflow_pkg_share = get_package_share_directory('bboxflow')
@@ -67,7 +63,57 @@ class BBoxFlow(Node):
         self.lidar_data = np.concatenate([self.lidar_data, np.zeros((self.lidar_data.shape[0], 1))+0], axis=1)
 
         self.get_logger().info(f"self.lidar_data shape: {self.lidar_data.shape}, dtype: {self.lidar_data.dtype}")
+        self.publish_dummy_detected_objects()
 
+    def publish_dummy_detected_objects(self):
+        if self.lidar_data is None:
+            self.get_logger().warn("No LiDAR data yet. Skipping dummy bounding box publish.")
+            return
+
+        # Randomly pick one point from LiDAR data
+        random_idx = random.randint(0, len(self.lidar_data) - 1)
+        random_point = self.lidar_data[random_idx]
+
+        detected_objects_msg = DetectedObjects()
+        detected_objects_msg.header.frame_id = "map"
+        detected_objects_msg.header.stamp = self.get_clock().now().to_msg()
+
+        # === Create a Dummy Detected Object ===
+        detected_obj = DetectedObject()
+        detected_obj.existence_probability = 0.95
+
+        # --- Classification ---
+        classification = ObjectClassification()
+        classification.label = ObjectClassification.CAR
+        classification.probability = 0.9
+        detected_obj.classification.append(classification)
+
+        # --- Kinematics (Pose with Covariance) ---
+        kinematics = DetectedObjectKinematics()
+        pose = Pose()
+        pose.position.x = float(random_point[0])
+        pose.position.y = float(random_point[1])
+        pose.position.z = float(random_point[2]) + 1.0  # Offset up for visualization
+        pose.orientation.w = 1.0  # No rotation
+        pose_with_covariance = PoseWithCovariance()
+        pose_with_covariance.pose = pose
+        kinematics.pose_with_covariance = pose_with_covariance
+        kinematics.orientation_availability = DetectedObjectKinematics.AVAILABLE
+        kinematics.has_position_covariance = False
+        detected_obj.kinematics = kinematics
+
+        # --- Shape ---
+        shape = Shape()
+        shape.type = Shape.BOUNDING_BOX
+        shape.dimensions = Vector3(x=4.0, y=2.0, z=1.5)  # Dummy dimensions
+        detected_obj.shape = shape
+
+        # Add to DetectedObjects array
+        detected_objects_msg.objects.append(detected_obj)
+
+        # === Publish ===
+        self.detected_objects_pub.publish(detected_objects_msg)
+        self.get_logger().info(f"Published dummy DetectedObject at ({pose.position.x:.2f}, {pose.position.y:.2f}, {pose.position.z:.2f}).")
 
 
 def main(args=None):
