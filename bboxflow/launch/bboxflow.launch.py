@@ -11,7 +11,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     bboxflow_pkg = get_package_share_directory('bboxflow')
-    rviz_config_path = os.path.join(bboxflow_pkg, 'rviz', 'bboxflow_config.rviz')
+    rviz_config_path = os.path.join(bboxflow_pkg, 'rviz', 'bboxflow_autoware_plugin.rviz')
 
     return LaunchDescription([
         # DeclareLaunchArgument(

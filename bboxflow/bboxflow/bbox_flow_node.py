@@ -65,6 +65,7 @@ class BBoxFlow(Node):
         self.get_logger().info(f"self.lidar_data shape: {self.lidar_data.shape}, dtype: {self.lidar_data.dtype}")
         self.publish_dummy_detected_objects()
 
+    # Modify this method to publish detected objects
     def publish_dummy_detected_objects(self):
         if self.lidar_data is None:
             self.get_logger().warn("No LiDAR data yet. Skipping dummy bounding box publish.")
