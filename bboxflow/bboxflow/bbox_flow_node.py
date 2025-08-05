@@ -62,7 +62,7 @@ class BBoxFlow(Node):
         y_vals = np.array([p['y'] for p in points_list], dtype=np.float32)
         z_vals = np.array([p['z'] for p in points_list], dtype=np.float32)
 
-        # Stack into (N, 3) array:
+        # Stack into (N, 4) array:
         self.lidar_data = np.column_stack((x_vals, y_vals, z_vals))
         self.lidar_data = np.concatenate([self.lidar_data, np.zeros((self.lidar_data.shape[0], 1))+0], axis=1)
 
