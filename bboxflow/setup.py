@@ -10,8 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # Add this line to install launch files
         ('share/' + package_name + '/launch', ['launch/bboxflow.launch.py']),
+        ('share/' + package_name + '/rviz', ['rviz/bboxflow_config.rviz']),  # Add this line
     ],
     install_requires=['setuptools'],
     zip_safe=True,
