@@ -12,8 +12,9 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/configs', ['configs/bboxflow_configs.yaml']),
+        ('share/' + package_name + '/configs', ['configs/rsu_coordinates.yaml']),
         ('share/' + package_name + '/launch', ['launch/bboxflow.launch.py']),
-        ('share/' + package_name + '/rviz', ['rviz/bboxflow_config.rviz']),  # Add this line
+        ('share/' + package_name + '/rviz', ['rviz/bboxflow_config.rviz']), 
     ],
     install_requires=['setuptools'],
     zip_safe=True,

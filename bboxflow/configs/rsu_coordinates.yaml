@@ -1,0 +1,46 @@
+rsu_coordinates:
+  lidars:
+    lidar2:
+      x: 4501.3804
+      y: 72917.1
+      z: 5.0
+      yaw: 334
+      pitch: 5.0
+      roll: 0.0
+    lidar3:
+      x: 4499.9434
+      y: 72926.1
+      z: 5.0
+      yaw: 334
+      pitch: 5.0
+      roll: 0.0
+    lidar7:
+      x: 4534.634
+      y: 72962.23
+      z: 5.0
+      yaw: 334
+      pitch: 5.0
+      roll: 0.0
+    lidar9:
+      x: 4520.1763
+      y: 72935.76
+      z: 5.0
+      yaw: 334
+      pitch: 5.0
+      roll: 0.0
+
+  cameras:
+    camera1:
+      x: 4501.3804
+      y: 72917.1
+      z: 5.0
+      yaw: 334
+      pitch: 5.0
+      roll: 0.0
+    camera2:
+      x: 4499.9434
+      y: 72926.1
+      z: 5.0
+      yaw: 334
+      pitch: 5.0
+      roll: 0.0
