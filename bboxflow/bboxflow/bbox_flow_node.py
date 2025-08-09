@@ -19,9 +19,14 @@ class BBoxFlow(Node):
     def __init__(self):
         super().__init__('bbox_flow')
 
-        ## Insert the topic you want to subscribe in config file
-        self.configs = self.config_file_loader('bboxflow_configs.yaml')
-        self.lidar_topic = self.configs['object_detection_input']['lidar_topic']['name']
+        # Uncomment if you want to get the topics name form launch file
+        self.declare_parameter('lidar_topic', '/sim/lidar2')
+        self.lidar_topic = self.get_parameter('lidar_topic').get_parameter_value().string_value
+        self.get_logger().info(f"Using LiDAR topic: {self.lidar_topic}")
+
+        ## Uncomment if you want to get the topics from config files
+        # self.configs = self.config_file_loader('bboxflow_configs.yaml')
+        # self.lidar_topic = self.configs['object_detection_input']['lidars']['topics']
 
         self.subscription = self.create_subscription(
             PointCloud2,
@@ -114,7 +119,7 @@ class BBoxFlow(Node):
 
         # === Publish ===
         self.detected_objects_pub.publish(detected_objects_msg)
-        self.get_logger().info(f"Published dummy DetectedObject at ({pose.position.x:.2f}, {pose.position.y:.2f}, {pose.position.z:.2f}).")
+        self.get_logger().info(f"Published dummy DetectedObject at ({pose.position.x:.2f}, {pose.position.y:.2f}, {pose.position.z:.2f}). on {self.bbox_topic}")
 
 
 def main(args=None):

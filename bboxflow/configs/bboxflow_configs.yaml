@@ -1,18 +1,13 @@
 object_detection_input:
-  lidar_topic:
-    enable: True
-    name: '/sim/lidar2'
+  lidars:
+    status: 'ON'
+    topics:
+      lidar2: '/sim/lidar2'
+      lidar3: '/sim/lidar3'
+      lidar7: '/sim/lidar7'
+      lidar9: '/sim/lidar9'
 
-  image_topic:
-    enable: False
-    name: ''
-
-
-  lidar_concatanation:
-    enable: False
-    topics: ''
-
-
-  lidar_image_fusion:
-    enable: False
-    topics: ''
+  cameras:
+    status: 'OFF'
+    topics:
+      camera1: '/sim/camera1'
