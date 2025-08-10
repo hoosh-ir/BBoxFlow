@@ -13,7 +13,7 @@ def generate_launch_description():
     bboxflow_pkg = get_package_share_directory('bboxflow')
     
     # RViZ config
-    rviz_config_path = os.path.join(bboxflow_pkg, 'rviz', 'bboxflow_autoware_plugin.rviz')
+    rviz_config_path = os.path.join(bboxflow_pkg, 'rviz', 'object_detection_vis.rviz')
     
     # object_detection_config_path
     object_detection_config_path = os.path.join(bboxflow_pkg, 'configs', 'bboxflow_configs.yaml')

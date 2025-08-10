@@ -11,6 +11,7 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/data', ['data/map.pcd']),
         ('share/' + package_name + '/configs', ['configs/bboxflow_configs.yaml']),
         ('share/' + package_name + '/configs', ['configs/rsu_coordinates.yaml']),
         ('share/' + package_name + '/launch', ['launch/bboxflow.launch.py']),
@@ -24,8 +25,9 @@ setup(
     license='MIT',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [
-            'bbox_flow = bboxflow.bbox_flow_node:main',
+    'console_scripts': [
+        'bbox_flow = bboxflow.bbox_flow_node:main',
+        'pcd_map_publisher = bboxflow.pcd_map_publisher:main',
         ],
     },
 )
