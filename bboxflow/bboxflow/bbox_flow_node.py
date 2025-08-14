@@ -22,7 +22,7 @@ class BBoxFlow(Node):
         super().__init__('bbox_flow')
 
         # Uncomment if you want to get the topics name form launch file
-        self.declare_parameter('lidar_topic', '/sim/lidar2')
+        self.declare_parameter('lidar_topic', '/rsu/intersection2/livox_avia_2/pointcloud')
         self.lidar_topic = self.get_parameter('lidar_topic').get_parameter_value().string_value
         self.get_logger().info(f"Using LiDAR topic: {self.lidar_topic}")
 
@@ -148,11 +148,14 @@ class BBoxFlow(Node):
         # tx, ty, tz = 4501.3804, 72917.1, 5.0
         # yaw_deg, pitch_deg, roll_deg = 334.0, 5.0, 0.0
 
+        # lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
         lidar_name = self.lidar_topic.split('/sim/')[1]
+
         tx = coordinates[lidar_name]['x']
         ty = coordinates[lidar_name]['y']
         tz = coordinates[lidar_name]['z']
-        yaw_deg = coordinates[lidar_name]['yaw']
+        yaw_unity_frame = coordinates[lidar_name]['yaw']
+        yaw_deg = (0 - yaw_unity_frame) % 360
         pitch_deg = coordinates[lidar_name]['pitch']
         roll_deg = coordinates[lidar_name]['roll']
         self.get_logger().info(f"coordinates: {tx}, {ty}, {tz}, {yaw_deg}, {pitch_deg}, {roll_deg}")
