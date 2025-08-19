@@ -88,6 +88,54 @@ class BBoxFlow(Node):
         self.get_logger().info(f"self.lidar_data shape: {self.lidar_data.shape}, dtype: {self.lidar_data.dtype}")
         self.detect_objects()
 
+
+    def transform_point(self, point, coordinates):
+        """
+        Transform a single point [x, y, z] from local LiDAR frame to global frame.
+        """
+        tx = coordinates['x']
+        ty = coordinates['y']
+        tz = coordinates['z']
+        yaw_unity_frame = coordinates['yaw']
+        yaw_deg = (0 - yaw_unity_frame) % 360
+        pitch_deg = coordinates['pitch']
+        roll_deg = coordinates['roll']
+
+        # Convert to radians
+        yaw = math.radians(yaw_deg)
+        pitch = math.radians(pitch_deg)
+        roll = math.radians(roll_deg)
+
+        # Rotation matrices
+        Rz = np.array([
+            [math.cos(yaw), -math.sin(yaw), 0],
+            [math.sin(yaw),  math.cos(yaw), 0],
+            [0, 0, 1]
+        ])
+
+        Ry = np.array([
+            [math.cos(pitch), 0, math.sin(pitch)],
+            [0, 1, 0],
+            [-math.sin(pitch), 0, math.cos(pitch)]
+        ])
+
+        Rx = np.array([
+            [1, 0, 0],
+            [0, math.cos(roll), -math.sin(roll)],
+            [0, math.sin(roll),  math.cos(roll)]
+        ])
+
+        # Combined rotation
+        R = Rz @ Ry @ Rx
+
+        # Apply transform
+        local_point = np.array([point[0], point[1], point[2]], dtype=np.float32)
+        rotated = R @ local_point
+        translated = rotated + np.array([tx, ty, tz], dtype=np.float32)
+
+        return translated
+
+
     # Modify this method to publish detected objects
     def detect_objects(self):
         if self.lidar_data is None:
@@ -102,7 +150,7 @@ class BBoxFlow(Node):
         detected_objects_msg.header.frame_id = "map"
         detected_objects_msg.header.stamp = self.get_clock().now().to_msg()
 
-        # === Create a Dummy Detected Object ===
+        # --- Create a Dummy Detected Object --- 
         detected_obj = DetectedObject()
         detected_obj.existence_probability = 0.95
 
@@ -112,12 +160,18 @@ class BBoxFlow(Node):
         classification.probability = 0.9
         detected_obj.classification.append(classification)
 
+        # ---  Transform to global frame  --- 
+        lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
+        # lidar_name = self.lidar_topic.split('/sim/')[1]
+        coords = self.lidars_coordinates[lidar_name]
+        global_point = self.transform_point(random_point, coords)
+
         # --- Kinematics (Pose with Covariance) ---
         kinematics = DetectedObjectKinematics()
         pose = Pose()
-        pose.position.x = float(random_point[0])
-        pose.position.y = float(random_point[1])
-        pose.position.z = float(random_point[2]) + 1.0  # Offset up for visualization
+        pose.position.x = float(global_point[0])
+        pose.position.y = float(global_point[1])
+        pose.position.z = float(global_point[2]) + 1.0  # Offset up for visualization
         pose.orientation.w = 1.0  # No rotation
         pose_with_covariance = PoseWithCovariance()
         pose_with_covariance.pose = pose
@@ -144,12 +198,8 @@ class BBoxFlow(Node):
     def transform_points(self, points, coordinates, msg):
         
         # LiDAR global position
-        
-        # tx, ty, tz = 4501.3804, 72917.1, 5.0
-        # yaw_deg, pitch_deg, roll_deg = 334.0, 5.0, 0.0
-
-        # lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
-        lidar_name = self.lidar_topic.split('/sim/')[1]
+        lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
+        # lidar_name = self.lidar_topic.split('/sim/')[1]
 
         tx = coordinates[lidar_name]['x']
         ty = coordinates[lidar_name]['y']
