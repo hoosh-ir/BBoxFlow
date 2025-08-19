@@ -86,7 +86,7 @@ class BBoxFlow(Node):
         self.lidar_data = np.concatenate([self.lidar_data, np.zeros((self.lidar_data.shape[0], 1))+0], axis=1)
 
         self.get_logger().info(f"self.lidar_data shape: {self.lidar_data.shape}, dtype: {self.lidar_data.dtype}")
-        self.detect_objects()
+        self.object_detection()
 
 
     def transform_point(self, point, coordinates):
@@ -137,42 +137,55 @@ class BBoxFlow(Node):
 
 
     # Modify this method to publish detected objects
-    def detect_objects(self):
+    def object_detection(self):
         if self.lidar_data is None:
             self.get_logger().warn("No LiDAR data yet. Skipping dummy bounding box publish.")
             return
+        
+        lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
+        # lidar_name = self.lidar_topic.split('/sim/')[1]
+        coords = self.lidars_coordinates[lidar_name]
 
+        #------  TODO: START, Fardin, Modify Here for Object Detection Logic -----#
         # Randomly pick one point from LiDAR data
         random_idx = random.randint(0, len(self.lidar_data) - 1)
-        random_point = self.lidar_data[random_idx]
+        
+        object_pose = self.lidar_data[random_idx] # object_pose selection
+        object_orientation = 1.0 # object orientation
+        object_dimensions = (4.0, 2.0, 1.0) # object dimensions
+        existence_probability = 0.95 # existence probability
+        classification_probability = 0.90 # classification probability
+        make_bounding_box(self, object_pose, object_orientation, object_dimensions, existence_probability, classification_probability, coords)
+        #------  TODO: END -----#
 
+
+    def make_bounding_box(self, object_pose, object_orientation, object_dimensions, existence_probability, classification_probability, coords):
+        
+        # --- Create a Detected Objects --- 
         detected_objects_msg = DetectedObjects()
         detected_objects_msg.header.frame_id = "map"
         detected_objects_msg.header.stamp = self.get_clock().now().to_msg()
 
-        # --- Create a Dummy Detected Object --- 
+        # --- Create a Detected Object --- 
         detected_obj = DetectedObject()
-        detected_obj.existence_probability = 0.95
+        detected_obj.existence_probability = existence_probability
 
         # --- Classification ---
         classification = ObjectClassification()
         classification.label = ObjectClassification.CAR
-        classification.probability = 0.9
+        classification.probability = classification_probability
         detected_obj.classification.append(classification)
 
         # ---  Transform to global frame  --- 
-        lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
-        # lidar_name = self.lidar_topic.split('/sim/')[1]
-        coords = self.lidars_coordinates[lidar_name]
-        global_point = self.transform_point(random_point, coords)
+        object_global_pose = self.transform_point(object_pose, coords)
 
         # --- Kinematics (Pose with Covariance) ---
         kinematics = DetectedObjectKinematics()
         pose = Pose()
-        pose.position.x = float(global_point[0])
-        pose.position.y = float(global_point[1])
-        pose.position.z = float(global_point[2]) + 1.0  # Offset up for visualization
-        pose.orientation.w = 1.0  # No rotation
+        pose.position.x = float(object_global_pose[0])
+        pose.position.y = float(object_global_pose[1])
+        pose.position.z = float(object_global_pose[2]) + 1.0  # Offset up for visualization
+        pose.orientation.w = object_orientation  # if 1 No rotation
         pose_with_covariance = PoseWithCovariance()
         pose_with_covariance.pose = pose
         kinematics.pose_with_covariance = pose_with_covariance
@@ -183,7 +196,8 @@ class BBoxFlow(Node):
         # --- Shape ---
         shape = Shape()
         shape.type = Shape.BOUNDING_BOX
-        shape.dimensions = Vector3(x=4.0, y=2.0, z=1.5)  # Dummy dimensions
+        # shape.dimensions = Vector3(x=4.0, y=2.0, z=1.5)  # dimensions
+        shape.dimensions = Vector3(x=object_dimensions[0], y=object_dimensions[1], z=object_dimensions[2])  # dimensions
         detected_obj.shape = shape
 
         # Add to DetectedObjects array
