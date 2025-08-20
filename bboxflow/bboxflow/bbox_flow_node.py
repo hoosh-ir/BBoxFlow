@@ -12,9 +12,13 @@ import yaml
 import collections.abc 
 import numpy as np
 from autoware_perception_msgs.msg import DetectedObjects, DetectedObject, Shape, ObjectClassification, DetectedObjectKinematics
-from geometry_msgs.msg import Pose, Vector3, PoseWithCovariance
+from geometry_msgs.msg import Pose, Vector3, PoseWithCovariance, Quaternion
 import math
 from std_msgs.msg import Header
+import requests
+import base64
+import time
+
 
 
 class BBoxFlow(Node):
@@ -46,7 +50,7 @@ class BBoxFlow(Node):
         self.transformed_lidar_topic = self.lidar_topic + '/global'
         self.transformed_lidar_pub = self.create_publisher(PointCloud2, self.transformed_lidar_topic, 10)
 
-        self.lidar_data = np.array
+        self.lidar_data = None
 
         
     def config_file_loader(self, file_name):
@@ -89,7 +93,8 @@ class BBoxFlow(Node):
         self.object_detection()
 
 
-    def transform_point(self, point, coordinates):
+    @staticmethod
+    def transform_point(point, coordinates):
         """
         Transform a single point [x, y, z] from local LiDAR frame to global frame.
         """
@@ -137,7 +142,7 @@ class BBoxFlow(Node):
 
 
     # Modify this method to publish detected objects
-    def object_detection(self):
+    def object_detection(self, base_url="http://localhost:8000"):
         if self.lidar_data is None:
             self.get_logger().warn("No LiDAR data yet. Skipping dummy bounding box publish.")
             return
@@ -146,33 +151,116 @@ class BBoxFlow(Node):
         # lidar_name = self.lidar_topic.split('/sim/')[1]
         coords = self.lidars_coordinates[lidar_name]
 
-        #------  TODO: START, Fardin, Modify Here for Object Detection Logic -----#
+        #------  Random point picking -----#
         # Randomly pick one point from LiDAR data
-        random_idx = random.randint(0, len(self.lidar_data) - 1)
+        # random_idx = random.randint(0, len(self.lidar_data) - 1)
         
-        object_pose = self.lidar_data[random_idx] # object_pose selection
-        object_orientation = 1.0 # object orientation
-        object_dimensions = (4.0, 2.0, 1.0) # object dimensions
-        existence_probability = 0.95 # existence probability
-        classification_probability = 0.90 # classification probability
-        make_bounding_box(self, object_pose, object_orientation, object_dimensions, existence_probability, classification_probability, coords)
-        #------  TODO: END -----#
+        # object_pose = self.lidar_data[random_idx] # object_pose selection
+        # object_orientation = 1.0 # object orientation
+        # object_dimensions = (4.0, 2.0, 1.0) # object dimensions
+        # existence_probability = 0.95 # existence probability
+        # classification_probability = 0.90 # classification probability
+        # make_bounding_box(self, object_pose, object_orientation, object_dimensions, existence_probability, classification_probability, coords)
+        #------  END -----#
 
-
-    def make_bounding_box(self, object_pose, object_orientation, object_dimensions, existence_probability, classification_probability, coords):
         
-        # --- Create a Detected Objects --- 
-        detected_objects_msg = DetectedObjects()
-        detected_objects_msg.header.frame_id = "map"
-        detected_objects_msg.header.stamp = self.get_clock().now().to_msg()
+        #------  TODO: Fardin Object detection -----#
 
+        lidar_bytes = self.lidar_data.tobytes()
+        lidar_base64 = base64.b64encode(lidar_bytes).decode('utf-8')
+
+        # Prepare request
+        payload = {
+            "model_name": "pointpillars",
+            "score_threshold": 0.3,
+            "lidar_data_base64": lidar_base64
+        }
+
+        # Send request
+        try:
+            start_time = time.time()
+            response = requests.post(
+                f"{base_url}/inference/lidar",
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            elapsed = time.time() - start_time
+
+            # --- Create Detected Objects --- 
+            detected_objects_msg = DetectedObjects()
+            detected_objects_msg.header.frame_id = "map"
+            detected_objects_msg.header.stamp = self.get_clock().now().to_msg()
+
+            for i, detection in enumerate(result['detections']):
+                self.get_logger().info(f"  Detection {i+1}:")
+                self.get_logger().info(f"  Score: {detection['score']:.3f}")
+                self.get_logger().info(f"  Label: {detection['label']}")
+                self.get_logger().info(f"  Center: [{detection['center'][0]:.2f}, {detection['center'][1]:.2f}, {detection['center'][2]:.2f}]")
+                self.get_logger().info(f"  Dimensions: [{detection['dimensions'][0]:.2f}, {detection['dimensions'][1]:.2f}, {detection['dimensions'][2]:.2f}]")
+                self.get_logger().info(f"  Rotation: {detection['rotation']:.3f}")
+
+                # --- Create a Detected Object --- 
+                object_pose = detection['center'] # object_pose selection
+                object_orientation = detection['rotation'] # object orientation
+                object_dimensions = detection['dimensions'] # object dimensions
+                object_label = detection['label']
+                existence_probability = 0.7 # existence probability
+                classification_probability = detection['score'] # classification probability
+            
+                detected_obj = self.make_bounding_box(object_pose, object_orientation, object_dimensions, object_label, existence_probability, classification_probability, coords)
+
+                # Add to DetectedObjects array
+                detected_objects_msg.objects.append(detected_obj)
+
+            # --- Publish Detected Objects ---
+            self.detected_objects_pub.publish(detected_objects_msg)
+            
+            self.get_logger().info(f"✓ LiDAR inference successful in {elapsed:.2f}s")
+            self.get_logger().info(f"  Model: {result['model_name']}")
+            self.get_logger().info(f"  Detections: {result['num_detections']}")
+            self.get_logger().info(f"  Processing time: {result['processing_time']:.2f}s")
+        
+        except Exception as e:
+            self.get_logger().warn(f"✗ LiDAR inference failed: {e}")
+            return False
+        
+        #------  END -----#
+
+    @staticmethod
+    def yaw_to_quaternion(yaw: float) -> Quaternion:
+        q = Quaternion()
+        q.x = 0.0
+        q.y = 0.0
+        q.z = math.sin(yaw / 2.0)
+        q.w = math.cos(yaw / 2.0)
+        return q
+
+
+    def make_bounding_box(self, object_pose, object_yaw, object_dimensions, object_label, existence_probability, classification_probability, coords):
+        
         # --- Create a Detected Object --- 
         detected_obj = DetectedObject()
         detected_obj.existence_probability = existence_probability
 
         # --- Classification ---
         classification = ObjectClassification()
-        classification.label = ObjectClassification.CAR
+
+        label_map = { 
+            1: ObjectClassification.CAR, 
+            2: ObjectClassification.TRUCK, 
+            3: ObjectClassification.BUS, 
+            4: ObjectClassification.TRAILER, 
+            5: ObjectClassification.MOTORCYCLE, 
+            6: ObjectClassification.BICYCLE, 
+            7: ObjectClassification.PEDESTRIAN, 
+        } 
+        classification.label = label_map.get(object_label, ObjectClassification.UNKNOWN)
+        # classification.label = object_label # ObjectClassification.CAR # TODO: change it with the label comming from the object detection
+
         classification.probability = classification_probability
         detected_obj.classification.append(classification)
 
@@ -184,8 +272,10 @@ class BBoxFlow(Node):
         pose = Pose()
         pose.position.x = float(object_global_pose[0])
         pose.position.y = float(object_global_pose[1])
-        pose.position.z = float(object_global_pose[2]) + 1.0  # Offset up for visualization
-        pose.orientation.w = object_orientation  # if 1 No rotation
+        pose.position.z = float(object_global_pose[2]) + 0.0  # Offset up for visualization
+        # pose.orientation.w = object_orientation  # if 1 No rotation
+        pose.orientation = self.yaw_to_quaternion(object_yaw) # TODO: check if the incomming rotation value is indeed a yaw in radians.
+
         pose_with_covariance = PoseWithCovariance()
         pose_with_covariance.pose = pose
         kinematics.pose_with_covariance = pose_with_covariance
@@ -200,12 +290,7 @@ class BBoxFlow(Node):
         shape.dimensions = Vector3(x=object_dimensions[0], y=object_dimensions[1], z=object_dimensions[2])  # dimensions
         detected_obj.shape = shape
 
-        # Add to DetectedObjects array
-        detected_objects_msg.objects.append(detected_obj)
-
-        # === Publish ===
-        self.detected_objects_pub.publish(detected_objects_msg)
-        self.get_logger().info(f"Published dummy DetectedObject at ({pose.position.x:.2f}, {pose.position.y:.2f}, {pose.position.z:.2f}). on {self.bbox_topic}")
+        return detected_obj
 
 
 
@@ -260,7 +345,8 @@ class BBoxFlow(Node):
         global_pcd = self.create_pointcloud2(msg.header.frame_id, msg.header.stamp, translated_points)
         self.transformed_lidar_pub.publish(global_pcd)
 
-    def create_pointcloud2(self, frame_id, stamp, points):
+    @staticmethod
+    def create_pointcloud2(frame_id, stamp, points):
         # Create PointCloud2 message from numpy array
         header = Header()
         header.stamp = stamp
