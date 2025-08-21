@@ -50,6 +50,9 @@ class BBoxFlow(Node):
         self.transformed_lidar_topic = self.lidar_topic + '/global'
         self.transformed_lidar_pub = self.create_publisher(PointCloud2, self.transformed_lidar_topic, 10)
 
+        self.lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
+        # self.lidar_name = self.lidar_topic.split('/sim/')[1]
+
         self.lidar_data = None
 
         
@@ -69,10 +72,6 @@ class BBoxFlow(Node):
 
         # This is a list of numpy structured elements
         points_list = list(point_cloud2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True))
-        
-        # points_np = np.array(points_list, dtype=np.float32)
-        # === Transform to global frame ===
-        # self.transform_points(points_np, self.lidars_coordinates, msg)
 
         # Extract columns explicitly:
         x_vals = np.array([p['x'] for p in points_list], dtype=np.float32)
@@ -87,7 +86,7 @@ class BBoxFlow(Node):
         self.transform_points(self.lidar_data, self.lidars_coordinates, msg)
 
         # === concat a column of 0 for intensity ===
-        self.lidar_data = np.concatenate([self.lidar_data, np.zeros((self.lidar_data.shape[0], 1))+0], axis=1)
+        self.lidar_data = np.concatenate([self.lidar_data, np.ones((self.lidar_data.shape[0], 1))], axis=1)
 
         self.get_logger().info(f"self.lidar_data shape: {self.lidar_data.shape}, dtype: {self.lidar_data.dtype}")
         self.object_detection()
@@ -140,39 +139,60 @@ class BBoxFlow(Node):
 
         return translated
 
+    @staticmethod
+    def rotate_shift_lidar(lidar, pitch_angle=5.0, shift_z_up=2.5):
+        """Rotate lidar around Y-axis (pitch) and shift Z up."""
+        pitch_angle = np.deg2rad(pitch_angle)
+        cos_pitch, sin_pitch = np.cos(pitch_angle), np.sin(pitch_angle)
 
-    # Modify this method to publish detected objects
+        R = np.array([
+            [cos_pitch, 0, sin_pitch],
+            [0,         1, 0        ],
+            [-sin_pitch,0, cos_pitch]
+        ])
+
+        xyz_rotated = lidar[:, :3] @ R.T
+        xyz_rotated[:, 2] += shift_z_up
+        lidar[:, :3] = xyz_rotated
+        return lidar
+    
+    @staticmethod
+    def undo_rotate_shift_lidar(points, pitch_angle=5.0, shift_z_up=2.5):
+        """Inverse of rotate_shift_lidar: undo Z-shift and Y-rotation."""
+        pitch_angle = np.deg2rad(pitch_angle)
+        cos_pitch, sin_pitch = np.cos(pitch_angle), np.sin(pitch_angle)
+
+        R_inv = np.array([
+            [cos_pitch, 0, -sin_pitch],
+            [0,         1,  0        ],
+            [sin_pitch, 0,  cos_pitch]
+        ])
+
+        # Undo shift
+        points[:, 2] -= shift_z_up
+        # Undo rotation
+        points[:, :3] = points[:, :3] @ R_inv.T
+        return points
+
+    # Modify this method to publish detected objects localhost:8000 nkgflyfgsb.loclx.io
     def object_detection(self, base_url="http://localhost:8000"):
         if self.lidar_data is None:
             self.get_logger().warn("No LiDAR data yet. Skipping dummy bounding box publish.")
             return
         
-        lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
-        # lidar_name = self.lidar_topic.split('/sim/')[1]
-        coords = self.lidars_coordinates[lidar_name]
-
-        #------  Random point picking -----#
-        # Randomly pick one point from LiDAR data
-        # random_idx = random.randint(0, len(self.lidar_data) - 1)
-        
-        # object_pose = self.lidar_data[random_idx] # object_pose selection
-        # object_orientation = 1.0 # object orientation
-        # object_dimensions = (4.0, 2.0, 1.0) # object dimensions
-        # existence_probability = 0.95 # existence probability
-        # classification_probability = 0.90 # classification probability
-        # make_bounding_box(self, object_pose, object_orientation, object_dimensions, existence_probability, classification_probability, coords)
-        #------  END -----#
-
+        coords = self.lidars_coordinates[self.lidar_name]
         
         #------  TODO: Fardin Object detection -----#
-
-        lidar_bytes = self.lidar_data.tobytes()
+        
+        # Preprocess LiDAR for model: rotate + shift
+        proc_lidar = self.rotate_shift_lidar(self.lidar_data.copy())
+        lidar_bytes = proc_lidar.tobytes()
         lidar_base64 = base64.b64encode(lidar_bytes).decode('utf-8')
 
         # Prepare request
         payload = {
             "model_name": "pointpillars",
-            "score_threshold": 0.3,
+            "score_threshold": 0.65,
             "lidar_data_base64": lidar_base64
         }
 
@@ -204,14 +224,14 @@ class BBoxFlow(Node):
                 self.get_logger().info(f"  Rotation: {detection['rotation']:.3f}")
 
                 # --- Create a Detected Object --- 
-                object_pose = detection['center'] # object_pose selection
+                object_center = self.undo_rotate_shift_lidar(np.array(detection['center']).reshape(1, 3)).flatten()
                 object_orientation = detection['rotation'] # object orientation
                 object_dimensions = detection['dimensions'] # object dimensions
                 object_label = detection['label']
                 existence_probability = 0.7 # existence probability
                 classification_probability = detection['score'] # classification probability
             
-                detected_obj = self.make_bounding_box(object_pose, object_orientation, object_dimensions, object_label, existence_probability, classification_probability, coords)
+                detected_obj = self.make_bounding_box(object_center, object_orientation, object_dimensions, object_label, existence_probability, classification_probability, coords)
 
                 # Add to DetectedObjects array
                 detected_objects_msg.objects.append(detected_obj)
@@ -297,16 +317,13 @@ class BBoxFlow(Node):
     def transform_points(self, points, coordinates, msg):
         
         # LiDAR global position
-        lidar_name = 'lidar' + self.lidar_topic.split('/')[3].split('_')[2]
-        # lidar_name = self.lidar_topic.split('/sim/')[1]
-
-        tx = coordinates[lidar_name]['x']
-        ty = coordinates[lidar_name]['y']
-        tz = coordinates[lidar_name]['z']
-        yaw_unity_frame = coordinates[lidar_name]['yaw']
+        tx = coordinates[self.lidar_name]['x']
+        ty = coordinates[self.lidar_name]['y']
+        tz = coordinates[self.lidar_name]['z']
+        yaw_unity_frame = coordinates[self.lidar_name]['yaw']
         yaw_deg = (0 - yaw_unity_frame) % 360
-        pitch_deg = coordinates[lidar_name]['pitch']
-        roll_deg = coordinates[lidar_name]['roll']
+        pitch_deg = coordinates[self.lidar_name]['pitch']
+        roll_deg = coordinates[self.lidar_name]['roll']
         self.get_logger().info(f"coordinates: {tx}, {ty}, {tz}, {yaw_deg}, {pitch_deg}, {roll_deg}")
 
 
