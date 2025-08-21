@@ -174,7 +174,7 @@ class BBoxFlow(Node):
         points[:, :3] = points[:, :3] @ R_inv.T
         return points
 
-    # Modify this method to publish detected objects
+    # Modify this method to publish detected objects localhost:8000 nkgflyfgsb.loclx.io
     def object_detection(self, base_url="http://localhost:8000"):
         if self.lidar_data is None:
             self.get_logger().warn("No LiDAR data yet. Skipping dummy bounding box publish.")
@@ -192,7 +192,7 @@ class BBoxFlow(Node):
         # Prepare request
         payload = {
             "model_name": "pointpillars",
-            "score_threshold": 0.1,
+            "score_threshold": 0.65,
             "lidar_data_base64": lidar_base64
         }
 
