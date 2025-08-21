@@ -6,10 +6,10 @@ object_detection_input:
       # lidar3: '/sim/lidar3'
       # lidar7: '/sim/lidar7'
       # lidar9: '/sim/lidar9'
-      lidar2: '/rsu/intersection2/livox_avia_2/pointcloud'
+      # lidar2: '/rsu/intersection2/livox_avia_2/pointcloud'
       lidar3: '/rsu/intersection2/livox_avia_3/pointcloud'
       lidar7: '/rsu/intersection2/livox_avia_7/pointcloud'
-      lidar9: '/rsu/intersection2/livox_avia_9/pointcloud'
+      # lidar9: '/rsu/intersection2/livox_avia_9/pointcloud'
 
   cameras:
     status: 'OFF'

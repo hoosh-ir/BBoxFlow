@@ -139,6 +139,40 @@ class BBoxFlow(Node):
 
         return translated
 
+    @staticmethod
+    def rotate_shift_lidar(lidar, pitch_angle=5.0, shift_z_up=2.5):
+        """Rotate lidar around Y-axis (pitch) and shift Z up."""
+        pitch_angle = np.deg2rad(pitch_angle)
+        cos_pitch, sin_pitch = np.cos(pitch_angle), np.sin(pitch_angle)
+
+        R = np.array([
+            [cos_pitch, 0, sin_pitch],
+            [0,         1, 0        ],
+            [-sin_pitch,0, cos_pitch]
+        ])
+
+        xyz_rotated = lidar[:, :3] @ R.T
+        xyz_rotated[:, 2] += shift_z_up
+        lidar[:, :3] = xyz_rotated
+        return lidar
+    
+    @staticmethod
+    def undo_rotate_shift_lidar(points, pitch_angle=5.0, shift_z_up=2.5):
+        """Inverse of rotate_shift_lidar: undo Z-shift and Y-rotation."""
+        pitch_angle = np.deg2rad(pitch_angle)
+        cos_pitch, sin_pitch = np.cos(pitch_angle), np.sin(pitch_angle)
+
+        R_inv = np.array([
+            [cos_pitch, 0, -sin_pitch],
+            [0,         1,  0        ],
+            [sin_pitch, 0,  cos_pitch]
+        ])
+
+        # Undo shift
+        points[:, 2] -= shift_z_up
+        # Undo rotation
+        points[:, :3] = points[:, :3] @ R_inv.T
+        return points
 
     # Modify this method to publish detected objects
     def object_detection(self, base_url="http://localhost:8000"):
@@ -149,14 +183,16 @@ class BBoxFlow(Node):
         coords = self.lidars_coordinates[self.lidar_name]
         
         #------  TODO: Fardin Object detection -----#
-
-        lidar_bytes = self.lidar_data.tobytes()
+        
+        # Preprocess LiDAR for model: rotate + shift
+        proc_lidar = self.rotate_shift_lidar(self.lidar_data.copy())
+        lidar_bytes = proc_lidar.tobytes()
         lidar_base64 = base64.b64encode(lidar_bytes).decode('utf-8')
 
         # Prepare request
         payload = {
             "model_name": "pointpillars",
-            "score_threshold": 0.0,
+            "score_threshold": 0.1,
             "lidar_data_base64": lidar_base64
         }
 
@@ -188,14 +224,14 @@ class BBoxFlow(Node):
                 self.get_logger().info(f"  Rotation: {detection['rotation']:.3f}")
 
                 # --- Create a Detected Object --- 
-                object_pose = detection['center'] # object_pose selection
+                object_center = self.undo_rotate_shift_lidar(np.array(detection['center']).reshape(1, 3)).flatten()
                 object_orientation = detection['rotation'] # object orientation
                 object_dimensions = detection['dimensions'] # object dimensions
                 object_label = detection['label']
                 existence_probability = 0.7 # existence probability
                 classification_probability = detection['score'] # classification probability
             
-                detected_obj = self.make_bounding_box(object_pose, object_orientation, object_dimensions, object_label, existence_probability, classification_probability, coords)
+                detected_obj = self.make_bounding_box(object_center, object_orientation, object_dimensions, object_label, existence_probability, classification_probability, coords)
 
                 # Add to DetectedObjects array
                 detected_objects_msg.objects.append(detected_obj)
