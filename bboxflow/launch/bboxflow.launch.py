@@ -27,17 +27,18 @@ def generate_launch_description():
     lidar_nodes = []
 
     if lidars_cfg['status'] == 'ON':
-        lidar_topics = lidars_cfg['topics']  # dict: {name: topic}
-        print(f"Found {len(lidar_topics)} LiDAR topics: {list(lidar_topics.values())}")
+        lidars = lidars_cfg['topics']  # dict: {name: topic}
+        print(f"Found {len(lidars)} LiDAR topics: {list(lidars.values())}")
         
-        for lidar_name, lidar_topic in lidar_topics.items():
+        for lidar_name, lidar_topic in lidars.items():
+            print("launcher debug lidar name: ", lidar_name)
             lidar_nodes.append(
                 Node(
                     package='bboxflow',
                     executable='bbox_flow',
                     name=f'bbox_flow_node_{lidar_name}',
                     output='screen',
-                    parameters=[{'lidar_topic': lidar_topic}]
+                    parameters=[{'lidar_name': lidar_name}]
                 )
             )
 
