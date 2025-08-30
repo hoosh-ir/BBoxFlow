@@ -32,6 +32,7 @@ class BBoxFlow(Node):
         # Getting the Lidar topic from config file
         self.configs = self.config_file_loader('bboxflow_configs.yaml')
         self.lidar_topic = self.configs['object_detection_input']['lidars']['topics'][self.lidar_name]
+        self.score_threshold = self.configs['object_detection_input']['score_threshold']
 
         # Getting the Lidar coordinates from config file
         self.rsu_coordinates = self.config_file_loader('rsu_coordinates.yaml')
@@ -140,7 +141,7 @@ class BBoxFlow(Node):
         # Prepare request
         payload = {
             "model_name": "pointpillars",
-            "score_threshold": 0.65,
+            "score_threshold": self.score_threshold,
             "lidar_data_base64": lidar_base64
         }
 

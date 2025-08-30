@@ -1,4 +1,6 @@
 object_detection_input:
+  score_threshold: 0.7
+  
   lidars:
     status: 'ON'
     topics:
