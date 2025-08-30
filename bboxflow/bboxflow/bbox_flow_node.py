@@ -208,6 +208,18 @@ class BBoxFlow(Node):
         q.w = math.cos(yaw / 2.0)
         return q
 
+    def transform_yaw(self, local_yaw):
+        """
+        Transform yaw angle from local LiDAR frame to global frame.
+        """
+        _, _, _, yaw_deg, pitch_deg, roll_deg = self.get_coordinates()
+        yaw_offset = math.radians(yaw_deg)
+        # Only yaw is relevant for 2D orientation of bounding box
+        global_yaw = local_yaw + yaw_offset
+        # Normalize angle to [-pi, pi]
+        global_yaw = math.atan2(math.sin(global_yaw), math.cos(global_yaw))
+        return global_yaw
+
 
     def make_bounding_box(self, object_pose, object_yaw, object_dimensions, object_label, existence_probability, classification_probability):
         
@@ -242,8 +254,11 @@ class BBoxFlow(Node):
         pose.position.x = float(object_global_pose[0])
         pose.position.y = float(object_global_pose[1])
         pose.position.z = float(object_global_pose[2]) + 0.0  # Offset up for visualization
+        
         # pose.orientation.w = object_orientation  # if 1 No rotation
-        pose.orientation = self.yaw_to_quaternion(object_yaw) # TODO: check if the incomming rotation value is indeed a yaw in radians.
+        global_yaw = self.transform_yaw(object_yaw)
+        pose.orientation = self.yaw_to_quaternion(global_yaw)
+        # pose.orientation = self.yaw_to_quaternion(object_yaw) # TODO: check if the incomming rotation value is indeed a yaw in radians.
 
         pose_with_covariance = PoseWithCovariance()
         pose_with_covariance.pose = pose
